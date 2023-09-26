@@ -1,6 +1,11 @@
 package controllers
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/dastardlyjockey/restaurant-management-backend/database"
+	"github.com/gin-gonic/gin"
+)
+
+var tableCollection = database.Collection(database.Client, "table")
 
 func CreateTable() gin.HandlerFunc {
 	return func(c *gin.Context) {

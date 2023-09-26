@@ -7,6 +7,8 @@ import (
 	"github.com/dastardlyjockey/restaurant-management-backend/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"net/http"
 	"time"
@@ -30,7 +32,41 @@ func CreateOrder() gin.HandlerFunc {
 		}
 
 		// validate the order
+		err = validate.Struct(order)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate order JSON"})
+			return
+		}
 
+		//check if the table id is valid
+		var table models.Table
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err = tableCollection.FindOne(ctx, bson.M{"table_id": order.TableID}).Decode(&table)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "The table Id is not available"})
+			return
+		}
+
+		// input the data to the database
+		order.CreatedAt, err = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		order.UpdatedAt, err = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		if err != nil {
+			msg := fmt.Sprintf("Failed to create timestamp, error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+			return
+		}
+		order.ID = primitive.NewObjectID()
+		order.OrderID = order.ID.Hex()
+
+		result, err := orderCollection.InsertOne(ctx, order)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert the order into the database"})
+			return
+		}
+
+		// message for a successful request
+		c.JSON(http.StatusCreated, result)
 	}
 }
 
@@ -76,6 +112,55 @@ func GetOrderById() gin.HandlerFunc {
 
 func UpdateOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// get request from the body
+		var order models.Order
 
+		err := c.BindJSON(&order)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while binding the order JSON from the request body"})
+			return
+		}
+
+		// retrieve the order id you want to update
+		orderID := c.Param("order_id")
+		filter := bson.M{"order_id": orderID}
+
+		// create the update Obj
+		var updateObj primitive.D
+
+		// verify the data from the order and store it in the update obj
+
+		//check whether the order belongs to a table
+		var table models.Table
+
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		err = tableCollection.FindOne(ctx, bson.M{"table_id": order.TableID}).Decode(&table)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Table was not found"})
+			return
+		}
+
+		// update the time
+		order.UpdatedAt, err = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		if err != nil {
+			log.Println("Failed in updating timestamp")
+		}
+
+		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: order.UpdatedAt})
+
+		// update the order in the database
+		upsert := true
+		opt := options.UpdateOptions{Upsert: &upsert}
+
+		updateResult, err := orderCollection.UpdateOne(ctx, filter, bson.D{{"$set", updateObj}}, &opt)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed updating order"})
+			return
+		}
+
+		// response
+		c.JSON(http.StatusOK, updateResult)
 	}
 }
