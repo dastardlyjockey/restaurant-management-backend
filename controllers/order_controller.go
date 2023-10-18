@@ -17,7 +17,8 @@ import (
 var orderCollection = database.Collection(database.Client, "orders")
 
 func OrderItemOrderCreator(order models.Order) string {
-
+	var m string
+	return m
 }
 
 func CreateOrder() gin.HandlerFunc {

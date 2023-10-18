@@ -70,7 +70,7 @@ func CreateInvoice() gin.HandlerFunc {
 
 		result, err := invoiceCollection.InsertOne(ctx, &invoice)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error" : ""})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": ""})
 			return
 		}
 
@@ -84,14 +84,14 @@ func GetInvoices() gin.HandlerFunc {
 		cursor, err := invoiceCollection.Find(context.TODO(), bson.M{})
 		if err != nil {
 			msg := fmt.Sprintf("Error getting the invoices, error:%s", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error" : msg} )
+			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
 
 		var results []bson.M
 		err = cursor.All(context.TODO(), &results)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error" : "failed to store the invoice results"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store the invoice results"})
 			return
 		}
 
@@ -117,11 +117,11 @@ func GetInvoiceById() gin.HandlerFunc {
 		// integrate the invoice into my created format
 		var invoiceView InvoiceViewFormat
 
-		orderItems, err := ItemsByOrder(invoice.OrderID)
-		if err != nil {
-			log.Println("error retrieving the Items by order", err)
-			return
-		}
+		//orderItems, err := ItemsByOrder(invoice.OrderID)
+		//if err != nil {
+		//	log.Println("error retrieving the Items by order", err)
+		//	return
+		//}
 
 		invoiceView.OrderID = invoice.OrderID
 		invoiceView.InvoiceID = invoice.InvoiceID
@@ -131,9 +131,9 @@ func GetInvoiceById() gin.HandlerFunc {
 			invoiceView.PaymentMethod = *invoice.PaymentMethod
 		}
 		invoiceView.PaymentStatus = *&invoice.PaymentStatus
-		invoiceView.PaymentDue = orderItems[0]{"payment_due"}
-		invoiceView.OrderDetails = orderItems[0]{"order_details"}
-		invoiceView.TableNumber = orderItems[0]{"table_number"}
+		//invoiceView.PaymentDue = orderItems[0]{"payment_due"}
+		//invoiceView.OrderDetails = orderItems[0]{"order_details"}
+		//invoiceView.TableNumber = orderItems[0]{"table_number"}
 
 		// response
 		c.JSON(http.StatusOK, invoiceView)
@@ -147,30 +147,30 @@ func UpdateInvoice() gin.HandlerFunc {
 
 		err := c.BindJSON(&invoice)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error" : "Failed to parse the update invoice"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse the update invoice"})
 			return
 		}
 
 		//validate the invoice
 		err = validate.Struct(invoice)
 		if err != nil {
-			c.JSON(http.StatusNotAcceptable, gin.H{"error" : "Validation failed"})
+			c.JSON(http.StatusNotAcceptable, gin.H{"error": "Validation failed"})
 			return
 		}
 
 		// creating the update object and retrieving the invoice id
 		invoiceId := c.Param("invoice_id")
-		filter := bson.M{"invoice_id" : invoiceId}
+		filter := bson.M{"invoice_id": invoiceId}
 
 		var updateObj primitive.D
 
 		// add the update to the database
 		if invoice.PaymentMethod != nil {
-			updateObj = append(updateObj, bson.E{Key: "payment_method" , Value: invoice.PaymentMethod})
+			updateObj = append(updateObj, bson.E{Key: "payment_method", Value: invoice.PaymentMethod})
 		}
 
 		if invoice.PaymentStatus != nil {
-			updateObj = append(updateObj, bson.E{Key: "payment_status" , Value: invoice.PaymentStatus})
+			updateObj = append(updateObj, bson.E{Key: "payment_status", Value: invoice.PaymentStatus})
 		}
 
 		status := "PENDING"
@@ -187,7 +187,7 @@ func UpdateInvoice() gin.HandlerFunc {
 		result, err := invoiceCollection.UpdateOne(ctx, filter, bson.D{{"$set", updateObj}}, &obj)
 		if err != nil {
 			msg := fmt.Sprintf("Error updating the invoice database: %s", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error" : msg})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
 

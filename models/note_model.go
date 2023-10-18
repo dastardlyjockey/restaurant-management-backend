@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-type Order struct {
+type Note struct {
 	ID        primitive.ObjectID `bson:"_id"`
-	OrderDate time.Time          `json:"order_date" validate:"required"`
+	Title     string             `json:"title"`
+	Text      string             `json:"text"`
 	CreatedAt time.Time          `json:"created_at"`
 	UpdatedAt time.Time          `json:"updated_at"`
-	TableID   *string            `json:"table_id" validate:"required"`
-	OrderID   string             `json:"order_id"`
+	NoteID    string             `json:"note_id"`
 }
