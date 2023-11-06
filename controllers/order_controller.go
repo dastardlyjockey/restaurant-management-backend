@@ -17,8 +17,15 @@ import (
 var orderCollection = database.Collection(database.Client, "orders")
 
 func OrderItemOrderCreator(order models.Order) string {
-	var m string
-	return m
+	order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+	order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+	order.ID = primitive.NewObjectID()
+	order.OrderID = order.ID.Hex()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	orderCollection.InsertOne(ctx, order)
+	return order.OrderID
 }
 
 func CreateOrder() gin.HandlerFunc {
