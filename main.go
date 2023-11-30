@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/dastardlyjockey/restaurant-management-backend/database"
+	"github.com/dastardlyjockey/restaurant-management-backend/middleware"
 	"github.com/dastardlyjockey/restaurant-management-backend/routes"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -30,7 +31,7 @@ func main() {
 	routes.UserRoutes(router)
 
 	// middleware
-	router.Use(middleware.Authentication())
+	router.Use(middleware.Authentication)
 
 	// routes
 	routes.FoodRoutes(router)

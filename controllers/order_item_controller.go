@@ -3,14 +3,21 @@ package controllers
 import (
 	"context"
 	"github.com/dastardlyjockey/restaurant-management-backend/database"
+	"github.com/dastardlyjockey/restaurant-management-backend/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"net/http"
 	"time"
 )
 
 var orderItemsCollection = database.Collection(database.Client, "orderItems")
+
+type orderItemPack struct {
+	TableID    *string
+	OrderItems []models.OrderItem
+}
 
 func ItemsByOrder(id string) (orderItems []primitive.M, err error) {
 	matchStage := bson.D{{"$match", bson.D{{"order_id", id}}}}
@@ -77,6 +84,53 @@ func ItemsByOrder(id string) (orderItems []primitive.M, err error) {
 
 func CreateOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// get the request from the client
+		var orderItemPack orderItemPack
+		var order models.Order
+		err := c.BindJSON(&orderItemPack)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to parse the order items"})
+			return
+		}
+
+		// add the order item to the database
+		orderItemToBeInserted := []interface{}{}
+		order.TableID = orderItemPack.TableID
+		orderID := OrderItemOrderCreator(order)
+
+		for _, orderItem := range orderItemPack.OrderItems {
+			orderItem.OrderID = orderID
+
+			validateErr := validate.Struct(orderItem)
+			if validateErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid order item"})
+				return
+			}
+
+			orderItem.ID = primitive.NewObjectID()
+			orderItem.OrderItemID = orderItem.ID.Hex()
+			num := toFixed(*orderItem.UnitPrice, 2)
+			orderItem.UnitPrice = &num
+			orderItem.CreatedAt, err = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+			orderItem.CreatedAt, err = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to create time"})
+				return
+			}
+
+			orderItemToBeInserted = append(orderItemToBeInserted, orderItem)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		result, err := orderItemsCollection.InsertMany(ctx, orderItemToBeInserted)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "failed to insert into database"})
+			return
+		}
+
+		//response
+		c.JSON(http.StatusOK, result)
 
 	}
 }
