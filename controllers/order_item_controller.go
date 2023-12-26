@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"net/http"
 	"time"
 )
@@ -137,24 +138,95 @@ func CreateOrderItem() gin.HandlerFunc {
 
 func GetOrderItems() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 
+		cursor, err := orderItemsCollection.Find(context.TODO(), bson.M{})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while listing the order items"})
+			return
+		}
+
+		var allOrder []bson.D
+		err = cursor.All(ctx, &allOrder)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, allOrder)
 	}
 }
 
 func GetOrderItemById() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		orderItemId := c.Param("orderItem_id")
 
+		var orderItem models.OrderItem
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		err := orderItemsCollection.FindOne(ctx, bson.M{"order_item_id": orderItemId}).Decode(&orderItem)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, orderItem)
 	}
 }
 
 func GetOrderItemsByOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		orderId := c.Param("order_id")
 
+		allItemsByOrder, err := ItemsByOrder(orderId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get items by order"})
+			return
+		}
+
+		c.JSON(http.StatusOK, allItemsByOrder)
 	}
 }
 
 func UpdateOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var orderItem models.OrderItem
+		orderItemId := c.Param("orderItem_id")
+		filter := bson.M{"order_item_id": orderItemId}
 
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		var updateObj primitive.D
+
+		if orderItem.UnitPrice != nil {
+			updateObj = append(updateObj, bson.E{"unit_price", *orderItem.UnitPrice})
+		}
+
+		if orderItem.Quantity != nil {
+			updateObj = append(updateObj, bson.E{"quantity", *orderItem.Quantity})
+		}
+
+		if orderItem.FoodID != nil {
+			updateObj = append(updateObj, bson.E{"food_id", *orderItem.FoodID})
+		}
+
+		orderItem.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		updateObj = append(updateObj, bson.E{"updated_at", orderItem.UpdatedAt})
+
+		//update the order item in the database
+		upsert := true
+		opt := options.UpdateOptions{Upsert: &upsert}
+
+		result, err := orderItemsCollection.UpdateOne(ctx, filter, bson.D{{"$set", updateObj}}, &opt)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update the order item"})
+			return
+		}
+
+		c.JSON(http.StatusOK, result)
 	}
 }
